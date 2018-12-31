@@ -25,3 +25,25 @@ func (s *server) getBudgets(w http.ResponseWriter, r *http.Request) {
 
     ffjson.NewEncoder(w).Encode(budgets)
 }
+
+func (s *server) createBudget(w http.ResponseWriter, r *http.Request) {
+    var param struct {
+        Amount float64 `json:"amount"`
+    }
+    err := ffjson.NewDecoder().DecodeReader(r.Body, &param)
+    if err != nil {
+        w.WriteHeader(http.StatusBadRequest)
+        json.NewEncoder(w).Encode(BadParamError)
+        return
+    }
+
+    budget := budget{Amount: param.Amount}
+    err = s.db.Insert(&budget)
+    if err != nil {
+        w.WriteHeader(http.StatusInternalServerError)
+        json.NewEncoder(w).Encode(DatabaseError)
+        return
+    }
+
+    ffjson.NewEncoder(w).Encode(budget)
+}

@@ -2,6 +2,7 @@
 package main
 
 import (
+    "bytes"
     "net/http"
     "os"
     "testing"
@@ -22,7 +23,7 @@ func TestMain(m *testing.M) {
         pg.Connect(&pg.Options{
             User:     "admingoforfun",
             Password: "admingoforfun",
-            Database: "admingoforfun_test",
+            Database: "mpierne01_test",
         }),
         mux.NewRouter(),
     )
@@ -30,14 +31,12 @@ func TestMain(m *testing.M) {
     badServer = newServer(
         pg.Connect(&pg.Options{
             User:     "not_found",
-            Password: "goforfun",
-            Database: "goforfun",
+            Password: "admingoforfun",
+            Database: "admingoforfun",
         }),
         mux.NewRouter(),
     )
 
-        // Here we create a temporary table to store each test case
-        // data and follow isolation which would be dropped after.
     testServer.db.CreateTable(&budget{}, &orm.CreateTableOptions{
         Temp: true,
     })
@@ -72,6 +71,43 @@ func TestGetBudgets_NormalResponse(t *testing.T) {
 func TestGetBudgets_DatabaseError(t *testing.T) {
     var body Error
     res, err := test.DoRequest(badServer, "GET", BudgetPath, nil)
+
+    ffjson.NewDecoder().DecodeReader(res.Body, &body)
+    assert.NoError(t, err)
+    assert.Equal(t, DatabaseError, &body)
+    assert.Equal(t, http.StatusInternalServerError, res.Code)
+}
+
+func TestCreateBudget(t *testing.T) {
+    var body budget
+    byt, err := ffjson.Marshal(&budget{Amount: 1000.4})
+    rdr := bytes.NewReader(byt)
+
+    res, err := test.DoRequest(testServer, "POST", BudgetPath, rdr)
+
+    ffjson.NewDecoder().DecodeReader(res.Body, &body)
+    assert.NoError(t, err)
+    assert.Equal(t, 1000.4, body.Amount)
+    assert.Equal(t, http.StatusOK, res.Code)
+}
+
+func TestCreateBudget_BadParamError(t *testing.T) {
+    var body Error
+    res, err := test.DoRequest(testServer, "POST", BudgetPath,
+        bytes.NewReader([]byte{}))
+
+    ffjson.NewDecoder().DecodeReader(res.Body, &body)
+    assert.NoError(t, err)
+    assert.Equal(t, BadParamError, &body)
+    assert.Equal(t, http.StatusBadRequest, res.Code)
+}
+
+func TestCreateBudget_DatabaseError(t *testing.T) {
+    var body Error
+    byt, err := ffjson.Marshal(&budget{Amount: 1000.4})
+    rdr := bytes.NewReader(byt)
+
+    res, err := test.DoRequest(badServer, "POST", BudgetPath, rdr)
 
     ffjson.NewDecoder().DecodeReader(res.Body, &body)
     assert.NoError(t, err)
